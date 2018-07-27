@@ -3,21 +3,39 @@ package udp_discover
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/blockchainservice/common/crypto"
 )
 
+const (
+	alpha      = 3  // Kademlia concurrency factor
+	bucketSize = 16 // Kademlia bucket size
+
+	maxFindnodeFailures   = 5 // Nodes exceeding this limit are dropped
+	autoNeighborsInterval = 30 * time.Minute
+	bucketRefreshInterval = 1 * time.Minute
+	walNodesInterval      = 30 * time.Second
+	pingPongInterval      = 10 * time.Second
+	seedMinTableTime      = 5 * time.Minute
+	seedCount             = 30
+	seedMaxAge            = 5 * 24 * time.Hour
+)
+
 type DiscoverTab struct {
-	tab         *Table
-	db          *nodeDB
-	conn        *discoverUdp
-	netrestrict *Netlist
-	nursery     []*Node
-	closeReq    chan struct{}
-	findnodeReq chan struct{}
-	mutex       sync.Mutex
+	tab           *Table
+	db            *nodeDB
+	conn          *discoverUdp
+	netrestrict   *Netlist
+	nursery       []*Node
+	closed        chan struct{}
+	closeReq      chan struct{}
+	neighborsReq  chan struct{}
+	neighborsResp chan (<-chan struct{})
+	mutex         sync.Mutex
+	rand          *rand.Rand // source of randomness, periodically reseeded
 }
 
 func newDiscover(conn *discoverUdp, ourPubkey ecdsa.PublicKey, dbPath string, netrestrict *Netlist, bootnodes []*Node) (*DiscoverTab, error) {
@@ -31,37 +49,72 @@ func newDiscover(conn *discoverUdp, ourPubkey ecdsa.PublicKey, dbPath string, ne
 	}
 	tab := newTable(ourID, conn.localAddr())
 	discv := &DiscoverTab{
-		tab:         tab,
-		db:          db,
-		conn:        conn,
-		netrestrict: netrestrict,
-		closeReq:    make(chan struct{}),
-		findnodeReq: make(chan struct{}),
+		tab:           tab,
+		db:            db,
+		conn:          conn,
+		netrestrict:   netrestrict,
+		closed:        make(chan struct{}),
+		closeReq:      make(chan struct{}),
+		neighborsReq:  make(chan struct{}),
+		neighborsResp: make(chan (<-chan struct{})),
+		rand:          rand.New(rand.NewSource(0)),
 	}
+
 	discv.setFallbackNodes(bootnodes)
 	return discv, nil
 }
 
 func (discv *DiscoverTab) start() {
 	var (
-		refreshDone = make(chan struct{})
+		pingPongTimer      = time.NewTimer(discv.nextPingPongTime())
+		bucketRefreshTimer = time.NewTimer(bucketRefreshInterval)
+		neighborsTimer     = time.NewTicker(autoNeighborsInterval)
+		walNodesTimer      = time.NewTicker(walNodesInterval)
+		neighborsDone      = make(chan struct{})
 	)
 	discv.db.ensureExpirer()
-	// 种子节点的findnode
-
 loop:
 	for {
 		select {
-		case <-discv.findnodeReq:
-			discv.refresh(refreshDone)
-		case <-refreshDone:
+		case <-neighborsTimer.C:
+			if neighborsDone == nil {
+				neighborsDone = make(chan struct{})
+			}
+			discv.getNeighbors(neighborsDone)
+
+		case <-bucketRefreshTimer.C:
+			target := discv.tab.chooseBucketRefreshTarget()
+			go func() {
+				discv.findnode(target)
+				bucketRefreshTimer.Reset(bucketRefreshInterval)
+			}()
+
+		case <-discv.neighborsReq:
+			discv.getNeighbors(neighborsDone)
+			discv.neighborsResp <- neighborsDone
+
+		case <-neighborsDone:
 			log.Debug("refreshDone")
+			if discv.tab.count != 0 {
+				neighborsDone = nil
+			} else {
+				neighborsDone = make(chan struct{})
+				discv.getNeighbors(neighborsDone)
+			}
+		case <-pingPongTimer.C:
+			go func() {
+				discv.pingPong()
+				pingPongTimer.Reset(discv.nextPingPongTime())
+			}()
+		case <-walNodesTimer.C:
+			go discv.walNodes()
 		case <-discv.closeReq:
 			break loop
 		}
 	}
 }
 
+// 节点发现触发
 func (discv *DiscoverTab) setFallbackNodes(nodes []*Node) error {
 	nursery := make([]*Node, 0, len(nodes))
 	for _, n := range nodes {
@@ -76,9 +129,21 @@ func (discv *DiscoverTab) setFallbackNodes(nodes []*Node) error {
 		nursery = append(nursery, &cpy)
 	}
 	discv.nursery = nursery
-	// 发送消息，告诉其他start routine可以从加载种子节点，以及findnode了
-	discv.findnodeReq <- struct{}{}
+	// 发送消息，告诉其他start routine可以从加载种子节点，以及findnode
+	select {
+	case discv.neighborsReq <- struct{}{}:
+		<-discv.neighborsResp
+	case <-discv.closed:
+	}
+
 	return nil
+}
+
+func (discv *DiscoverTab) nextPingPongTime() time.Duration {
+	discv.mutex.Lock()
+	defer discv.mutex.Unlock()
+
+	return time.Duration(discv.rand.Int63n(int64(pingPongInterval)))
 }
 
 func (discv *DiscoverTab) loadSeedNodes(done chan<- struct{}) {
@@ -104,14 +169,50 @@ func (discv *DiscoverTab) loadSeedNodes(done chan<- struct{}) {
 	}
 }
 
-func (discv *DiscoverTab) refresh(done chan<- struct{}) {
+// neighborsPacket
+func (discv *DiscoverTab) getNeighbors(done chan<- struct{}) {
 	discv.loadSeedNodes(done)
-	// findnode
-
 	go func() {
 		go discv.findnode(discv.tab.self.ID)
 		close(done)
 	}()
+}
+
+func (discv *DiscoverTab) pingPong() {
+	last, bi := discv.tab.nodeToRevalidate()
+	if last == nil {
+		// No non-empty bucket found.
+		return
+	}
+	err := discv.conn.ping(last.ID, last.addr())
+	discv.tab.mutex.Lock()
+	defer discv.tab.mutex.Unlock()
+	b := discv.tab.buckets[bi]
+	if err == nil {
+		// The node responded, move it to the front.
+		log.Trace("Revalidated node", "b", bi, "id", last.ID)
+		b.bump(last)
+		return
+	}
+	if r := discv.tab.replace(b, last); r != nil {
+		log.Trace("Replaced dead node", "b", bi, "id", last.ID, "ip", last.IP, "r", r.ID, "rip", r.IP)
+	} else {
+		log.Trace("Removed dead node", "b", bi, "id", last.ID, "ip", last.IP)
+	}
+}
+
+func (discv *DiscoverTab) walNodes() {
+	discv.mutex.Lock()
+	defer discv.mutex.Unlock()
+
+	now := time.Now()
+	for _, b := range discv.tab.buckets {
+		for _, n := range b.entries {
+			if now.Sub(n.addedAt) >= seedMinTableTime {
+				discv.db.updateNode(n)
+			}
+		}
+	}
 }
 
 func (discv *DiscoverTab) findnode(targetID NodeID) {

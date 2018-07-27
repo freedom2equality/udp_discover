@@ -1,42 +1,27 @@
 package udp_discover
 
 import (
+	"encoding/binary"
 	"math/rand"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/blockchainservice/common"
 )
 
 const (
-	alpha           = 3  // Kademlia concurrency factor
-	bucketSize      = 16 // Kademlia bucket size
-	maxReplacements = 10 // Size of per-bucket replacement list
-
 	// We keep buckets for the upper 1/15 of distances because
 	// it's very unlikely we'll ever encounter a node that's closer.
 	hashBits          = len(common.Hash{}) * 8
 	nBuckets          = hashBits / 15       // Number of buckets
 	bucketMinDistance = hashBits - nBuckets // Log distance of closest bucket
-
-	// IP address limits.
-	bucketIPLimit, bucketSubnet = 2, 24 // at most 2 addresses from the same /24
-	tableIPLimit, tableSubnet   = 10, 24
-
-	maxFindnodeFailures = 5 // Nodes exceeding this limit are dropped
-	refreshInterval     = 30 * time.Minute
-	revalidateInterval  = 10 * time.Second
-	copyNodesInterval   = 30 * time.Second
-	seedMinTableTime    = 5 * time.Minute
-	seedCount           = 30
-	seedMaxAge          = 5 * 24 * time.Hour
 )
 
 type Table struct {
 	mutex   sync.Mutex        // protects buckets, bucket content, nursery, rand
 	buckets [nBuckets]*bucket // index of known nodes by distance
 	self    *Node             // metadata of the local node
+	rand    *rand.Rand        // source of randomness, periodically reseeded
 	count   int               // number of nodes
 }
 
@@ -88,6 +73,23 @@ func (tab *Table) delete(node *Node) {
 	}
 }
 
+func (tab *Table) replace(b *bucket, last *Node) *Node {
+	if len(b.entries) == 0 || b.entries[len(b.entries)-1].ID != last.ID {
+		// Entry has moved, don't replace it.
+		return nil
+	}
+	// Still the last entry.
+	if len(b.replacements) == 0 {
+		//tab.deleteInBucket(b, last)
+		return nil
+	}
+	r := b.replacements[tab.rand.Intn(len(b.replacements))]
+	//b.replacements = deleteNode(b.replacements, r)
+	b.entries[len(b.entries)-1] = r
+	//tab.removeIP(b, last.IP)
+	return r
+}
+
 func (tab *Table) closest(target common.Hash, nresults int) *nodesByDistance {
 	close := &nodesByDistance{target: target}
 	for _, b := range tab.buckets {
@@ -96,6 +98,32 @@ func (tab *Table) closest(target common.Hash, nresults int) *nodesByDistance {
 		}
 	}
 	return close
+}
+
+func (tab *Table) chooseBucketRefreshTarget() NodeID {
+	var b [8]byte
+	rand.Read(b[:])
+
+	tab.mutex.Lock()
+	tab.rand.Seed(int64(binary.BigEndian.Uint64(b[:])))
+	tab.mutex.Unlock()
+	var target NodeID
+	rand.Read(target[:])
+	return target
+}
+
+func (tab *Table) nodeToRevalidate() (n *Node, bi int) {
+	tab.mutex.Lock()
+	defer tab.mutex.Unlock()
+
+	for _, bi = range tab.rand.Perm(len(tab.buckets)) {
+		b := tab.buckets[bi]
+		if len(b.entries) > 0 {
+			last := b.entries[len(b.entries)-1]
+			return last, bi
+		}
+	}
+	return nil, 0
 }
 
 // table of leading zero counts for bytes [0..255]
