@@ -1,0 +1,118 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "YEqHEaJ8n8iYCCdg+zQFwd8Vjdg=",
+			"path": "github.com/blockchainservice/common",
+			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
+			"revisionTime": "2018-07-18T11:16:26Z"
+		},
+		{
+			"checksumSHA1": "lOp0ZTJrYs0ixrVisg05w6oo4ao=",
+			"path": "github.com/blockchainservice/common/crypto",
+			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
+			"revisionTime": "2018-07-18T11:16:26Z"
+		},
+		{
+			"checksumSHA1": "h1d2lPZf6j2dW/mIqVnd1RdykDo=",
+			"path": "github.com/golang/snappy",
+			"revision": "2e65f85255dbc3072edf28d6b5b8efc472979f5a",
+			"revisionTime": "2018-05-18T05:39:59Z"
+		},
+		{
+			"checksumSHA1": "Ua7bbrA6+Zy8NtAP7Uo+XHVATQI=",
+			"origin": "github.com/blockchainservice/vendor/github.com/jrick/logrotate/rotator",
+			"path": "github.com/jrick/logrotate/rotator",
+			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
+			"revisionTime": "2018-07-18T11:16:26Z"
+		},
+		{
+			"checksumSHA1": "k6zbR5hiI10hkWtiK91rIY5s5/E=",
+			"path": "github.com/syndtr/goleveldb/leveldb",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "EKIow7XkgNdWvR/982ffIZxKG8Y=",
+			"path": "github.com/syndtr/goleveldb/leveldb/cache",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "5KPgnvCPlR0ysDAqo6jApzRQ3tw=",
+			"path": "github.com/syndtr/goleveldb/leveldb/comparer",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "1DRAxdlWzS4U0xKN/yQ/fdNN7f0=",
+			"path": "github.com/syndtr/goleveldb/leveldb/errors",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "eqKeD6DS7eNCtxVYZEHHRKkyZrw=",
+			"path": "github.com/syndtr/goleveldb/leveldb/filter",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "weSsccMav4BCerDpSLzh3mMxAYo=",
+			"path": "github.com/syndtr/goleveldb/leveldb/iterator",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "gJY7bRpELtO0PJpZXgPQ2BYFJ88=",
+			"path": "github.com/syndtr/goleveldb/leveldb/journal",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "MtYY1b2234y/MlS+djL8tXVAcQs=",
+			"path": "github.com/syndtr/goleveldb/leveldb/memdb",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "UmQeotV+m8/FduKEfLOhjdp18rs=",
+			"path": "github.com/syndtr/goleveldb/leveldb/opt",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "ZnyuciM+R19NG8L5YS3TIJdo1e8=",
+			"path": "github.com/syndtr/goleveldb/leveldb/storage",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "gWFPMz8OQeul0t54RM66yMTX49g=",
+			"path": "github.com/syndtr/goleveldb/leveldb/table",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "V/Dh7NV0/fy/5jX1KaAjmGcNbzI=",
+			"path": "github.com/syndtr/goleveldb/leveldb/util",
+			"revision": "c4c61651e9e37fa117f53c5a906d3b63090d8445",
+			"revisionTime": "2018-07-08T03:05:51Z"
+		},
+		{
+			"checksumSHA1": "TQoVgHqUD72/5ALzi9p5W3oyaug=",
+			"origin": "github.com/blockchainservice/vendor/golang.org/x/crypto/ripemd160",
+			"path": "golang.org/x/crypto/ripemd160",
+			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
+			"revisionTime": "2018-07-18T11:16:26Z"
+		},
+		{
+			"checksumSHA1": "RqGZ4+kml1FpFU//nZKlu/uBiJY=",
+			"origin": "github.com/blockchainservice/vendor/golang.org/x/crypto/sha3",
+			"path": "golang.org/x/crypto/sha3",
+			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
+			"revisionTime": "2018-07-18T11:16:26Z"
+		}
+	],
+	"rootPath": "github.com/udp_discover"
+}
