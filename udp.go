@@ -1,7 +1,10 @@
 package udp_discover
 
 import (
+	"bytes"
+	"container/list"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -33,10 +36,27 @@ type DiscvConfig struct {
 	ExternalIP net.IP
 }
 
+type pending struct {
+	from     NodeID
+	ptype    byte
+	deadline time.Time
+	callback func(resp interface{}) (done bool)
+	errc     chan<- error
+}
+
+type reply struct {
+	from    NodeID
+	ptype   byte
+	data    interface{}
+	matched chan<- bool
+}
+
 type discoverUdp struct {
 	conn        net.UDPConn
 	priv        ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
+	addpending  chan *pending
+	gotreply    chan reply
 	stopped     chan struct{}
 	discv       *DiscoverTab
 }
@@ -56,9 +76,11 @@ func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 		return nil, err
 	}
 	discvUdp := discoverUdp{
-		conn:    *conn,
-		priv:    cfg.Priv,
-		stopped: make(chan struct{}),
+		conn:       *conn,
+		priv:       cfg.Priv,
+		stopped:    make(chan struct{}),
+		gotreply:   make(chan reply),
+		addpending: make(chan *pending),
 	}
 	exIp := cfg.ExternalIP
 	if exIp == nil {
@@ -76,10 +98,92 @@ func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 }
 
 func (t *discoverUdp) loop() {
+
+	var (
+		plist        = list.New()
+		timeout      = time.NewTimer(0)
+		nextTimeout  *pending // head of plist when timeout was last reset
+		contTimeouts = 0      // number of continuous timeouts to do NTP checks
+		ntpWarnTime  = time.Unix(0, 0)
+	)
+	<-timeout.C // ignore first timeout
+	defer timeout.Stop()
+
+	resetTimeout := func() {
+		if plist.Front() == nil || nextTimeout == plist.Front().Value {
+			return
+		}
+		// Start the timer so it fires when the next pending reply has expired.
+		now := time.Now()
+		for el := plist.Front(); el != nil; el = el.Next() {
+			nextTimeout = el.Value.(*pending)
+			if dist := nextTimeout.deadline.Sub(now); dist < 2*respTimeout {
+				timeout.Reset(dist)
+				return
+			}
+			// Remove pending replies whose deadline is too far in the
+			// future. These can occur if the system clock jumped
+			// backwards after the deadline was assigned.
+			nextTimeout.errc <- errClockWarp
+			plist.Remove(el)
+		}
+		nextTimeout = nil
+		timeout.Stop()
+	}
+
 	for {
+		resetTimeout()
+
 		select {
 		case <-t.stopped:
+			for el := plist.Front(); el != nil; el = el.Next() {
+				el.Value.(*pending).errc <- errClosed
+			}
 			return
+		case p := <-t.addpending:
+			p.deadline = time.Now().Add(respTimeout)
+			plist.PushBack(p)
+
+		case r := <-t.gotreply:
+			var matched bool
+			for el := plist.Front(); el != nil; el = el.Next() {
+				p := el.Value.(*pending)
+				if p.from == r.from && p.ptype == r.ptype {
+					matched = true
+					// Remove the matcher if its callback indicates
+					// that all replies have been received. This is
+					// required for packet types that expect multiple
+					// reply packets.
+					if p.callback(r.data) {
+						p.errc <- nil
+						plist.Remove(el)
+					}
+					// Reset the continuous timeout counter (time drift detection)
+					contTimeouts = 0
+				}
+			}
+			r.matched <- matched
+
+		case now := <-timeout.C:
+			nextTimeout = nil
+
+			// Notify and remove callbacks whose deadline is in the past.
+			for el := plist.Front(); el != nil; el = el.Next() {
+				p := el.Value.(*pending)
+				if now.After(p.deadline) || now.Equal(p.deadline) {
+					p.errc <- errTimeout
+					plist.Remove(el)
+					contTimeouts++
+				}
+			}
+			// If we've accumulated too many timeouts, do an NTP time sync check
+			if contTimeouts > ntpFailureThreshold {
+				if time.Since(ntpWarnTime) >= ntpWarningCooldown {
+					ntpWarnTime = time.Now()
+					//go checkClockDrift()
+				}
+				contTimeouts = 0
+			}
 		}
 	}
 }
@@ -139,8 +243,22 @@ func (t *discoverUdp) sendPing(toid NodeID, toaddr *net.UDPAddr, callback func()
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 	}
+	packet, hash, err := encodePacket(&t.priv, pingPacket, req)
+	if err != nil {
+		errc := make(chan error, 1)
+		errc <- err
+		return errc
+	}
+	errc := t.pending(toid, pongPacket, func(p interface{}) bool {
+		ok := bytes.Equal(p.(*pong).ReplyTok, hash)
+		if ok && callback != nil {
+			callback()
+		}
+		return ok
+	})
 	log.Debug(req)
-	return nil
+	t.write(toaddr, req.name(), packet)
+	return errc
 }
 
 func (t *discoverUdp) waitping(from NodeID) error {
@@ -148,14 +266,56 @@ func (t *discoverUdp) waitping(from NodeID) error {
 }
 
 func (t *discoverUdp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node, error) {
-	return nil, nil
+	if time.Since(t.discv.db.lastPingReceived(toid)) > nodeDBNodeExpiration {
+		t.ping(toid, toaddr)
+		t.waitping(toid)
+	}
+
+	// 发送findnode消息，并等待neighbors返回
+	nodes := make([]*Node, 0, bucketSize)
+	nreceived := 0
+	errc := t.pending(toid, neighborsPacket, func(r interface{}) bool {
+		reply := r.(*neighbors)
+		for _, rn := range reply.Nodes {
+			nreceived++
+			//检查找到的ip、port的合法性，生成一个node节点
+			n, err := t.checkneighbor(toaddr, rn)
+			if err != nil {
+				log.Trace("Invalid neighbor node received", "ip", rn.IP, "addr", toaddr, "err", err)
+				continue
+			}
+			nodes = append(nodes, n)
+		}
+		return nreceived >= bucketSize
+	})
+	t.send(toaddr, findnodePacket, &findnode{
+		Target:     target,
+		Expiration: uint64(time.Now().Add(expiration).Unix()),
+	})
+
+	return nodes, <-errc
+}
+
+func (t *discoverUdp) checkneighbor(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
+	if rn.UDP <= 1024 {
+		return nil, errors.New("low port")
+	}
+	if err := CheckRelayIP(sender.IP, rn.IP); err != nil {
+		return nil, err
+	}
+	if t.discv.netrestrict != nil && !t.discv.netrestrict.Contains(rn.IP) {
+		return nil, errors.New("not contained in netrestrict whitelist")
+	}
+	n := NewNode(rn.ID, rn.IP, rn.UDP, rn.TCP)
+	err := n.validateComplete()
+	return n, err
 }
 
 func (t *discoverUdp) pending(id NodeID, ptype byte, callback func(interface{}) bool) <-chan error {
 	ch := make(chan error, 1)
-	//p := &pending{from: id, ptype: ptype, callback: callback, errc: ch}
+	p := &pending{from: id, ptype: ptype, callback: callback, errc: ch}
 	select {
-	//case t.addpending <- p:
+	case t.addpending <- p:
 	// loop will handle it
 	case <-t.stopped:
 		ch <- errClosed
@@ -164,7 +324,14 @@ func (t *discoverUdp) pending(id NodeID, ptype byte, callback func(interface{}) 
 }
 
 func (t *discoverUdp) handleReply(from NodeID, ptype byte, req packet) bool {
-	return true
+	matched := make(chan bool, 1)
+	select {
+	case t.gotreply <- reply{from, ptype, req, matched}:
+		// loop will handle it
+		return <-matched
+	case <-t.stopped:
+		return false
+	}
 }
 
 func (t *discoverUdp) send(toaddr *net.UDPAddr, ptype byte, req packet) ([]byte, error) {
