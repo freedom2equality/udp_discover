@@ -1,4 +1,4 @@
-// +build notwindows
+// +build !windows
 
 package util
 
