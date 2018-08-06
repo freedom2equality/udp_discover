@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package protos;
+
+message Peer {
+    string IP = 1;
+    uint32 UDP = 2;
+    uint32 TCP = 3;
+    bytes ID = 4;
+}
+
+message Endpoint {
+	string IP = 1;
+	uint32 UDP = 2;
+	uint32 TCP = 3;
+}
+
+
+message Ping {
+    uint32 Version = 1;
+    Endpoint From = 2;
+    Endpoint To = 3;
+    uint64 Expiration = 4;
+}
+
+message Pong {
+    Endpoint To = 1;
+    bytes ReplyTok = 2;
+    uint64 Expiration = 3;
+}
+
+message Findnode {
+    bytes Target = 1;
+    uint64 Expiration = 2;
+}
+
+message Neighbors {
+    repeated Peer Peers = 1;
+    uint64 Expiration = 2;
+}

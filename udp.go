@@ -54,19 +54,19 @@ type reply struct {
 type discoverUdp struct {
 	conn        net.UDPConn
 	priv        ecdsa.PrivateKey
-	ourEndpoint rpcEndpoint
+	ourEndpoint Endpoint
 	addpending  chan *pending
 	gotreply    chan reply
 	stopped     chan struct{}
 	discv       *DiscoverTab
 }
 
-func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
+func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) Endpoint {
 	ip := addr.IP.To4()
 	if ip == nil {
 		ip = addr.IP.To16()
 	}
-	return rpcEndpoint{IP: ip, UDP: uint16(addr.Port), TCP: tcpPort}
+	return Endpoint{IP: ip, UDP: uint16(addr.Port), TCP: tcpPort}
 }
 
 func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
@@ -213,7 +213,8 @@ func (t *discoverUdp) Start() {
 	go t.readLoop()
 }
 
-func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (packet, hash []byte, err error) {
+func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (data, hash []byte, err error) {
+
 	return nil, nil, nil
 }
 
@@ -276,7 +277,7 @@ func (t *discoverUdp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) 
 	nreceived := 0
 	errc := t.pending(toid, neighborsPacket, func(r interface{}) bool {
 		reply := r.(*neighbors)
-		for _, rn := range reply.Nodes {
+		for _, rn := range reply.Peers {
 			nreceived++
 			//检查找到的ip、port的合法性，生成一个node节点
 			n, err := t.checkneighbor(toaddr, rn)
@@ -296,7 +297,7 @@ func (t *discoverUdp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) 
 	return nodes, <-errc
 }
 
-func (t *discoverUdp) checkneighbor(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
+func (t *discoverUdp) checkneighbor(sender *net.UDPAddr, rn Peer) (*Node, error) {
 	if rn.UDP <= 1024 {
 		return nil, errors.New("low port")
 	}
