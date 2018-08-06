@@ -214,6 +214,7 @@ func (t *discoverUdp) Start() {
 }
 
 func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (data, hash []byte, err error) {
+	//buf, err := p.Serialize()
 
 	return nil, nil, nil
 }

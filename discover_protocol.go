@@ -6,7 +6,6 @@ import (
 
 	"github.com/blockchainservice/common/crypto"
 	"github.com/bytom/p2p/netutil"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/gogo/protobuf/proto"
 	"github.com/udp_discover/protos"
 )
@@ -39,7 +38,8 @@ func init() {
 	maxSizeNode := Peer{IP: make(net.IP, 16), UDP: ^uint16(0), TCP: ^uint16(0)}
 	for n := 0; ; n++ {
 		p.Peers = append(p.Peers, maxSizeNode)
-		size, _, err := rlp.EncodeToReader(p)
+		tmp, err := p.Serialize()
+		size := len(tmp)
 		if err != nil {
 			// If this ever happens, it will be caught by the unit tests.
 			panic("cannot encode: " + err.Error())
