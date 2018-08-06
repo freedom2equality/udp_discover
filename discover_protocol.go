@@ -19,9 +19,10 @@ const (
 )
 
 const (
-	macSize  = 256 / 8
-	sigSize  = 520 / 8
-	headSize = macSize + sigSize // space of packet frame data
+	versionPrefix     = []byte("discovery v5")
+	versionPrefixSize = len(versionPrefix)
+	sigSize           = 520 / 8
+	headSize          = versionPrefix + sigSize // space of packet frame data
 )
 
 var (

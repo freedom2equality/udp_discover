@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/blockchainservice/common/crypto"
 	"github.com/udp_discover/util"
 )
 
@@ -95,6 +96,48 @@ func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 	}
 	discvUdp.discv = discv
 	return discv.tab, nil
+}
+
+func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (data, hash []byte, err error) {
+	data = new(bytes.Buffer)
+	buf, err := req.Serialize()
+	if err != nil {
+		return nil, nil, err
+	}
+	// 改成私钥签名
+	var sig = make([]byte, sigSize)
+	data.Write(versionPrefix)
+	data.Write(sig)
+	data.WriteByte(ptype)
+	data.Write(buf)
+	hash := crypto.Sha3(data[versionPrefixSize:])
+	return data, hash, nil
+}
+
+func decodePacket(buf []byte) (packet, NodeID, []byte, error) {
+	if len(buf) < headSize+1 {
+		return return nil, NodeID{}, nil, errPacketTooSmall
+	}
+	hash, sig, sigdata := buf[:versionPrefixSize], buf[versionPrefixSize:headSize], buf[headSize:]
+	if !bytes.Equal(prefix, versionPrefix) {
+		return return nil, NodeID{}, nil, errBadPrefix
+	}
+	var fromID NodeID
+	var req packet
+	switch ptype := sigdata[0]; ptype {
+	case pingPacket:
+		req = new(ping)
+	case pongPacket:
+		req = new(pong)
+	case findnodePacket:
+		req = new(findnode)
+	case neighborsPacket:
+		req = new(neighbors)
+	default:
+		return nil, fromID, hash, fmt.Errorf("unknown type: %d", ptype)
+	}
+	err := req.Deserialize(sigdata[1:])
+	return req, fromID, hash, err
 }
 
 func (t *discoverUdp) loop() {
@@ -211,16 +254,6 @@ func (t *discoverUdp) Start() {
 	go t.loop()
 	// 作为udp服务，接受其他client的连接，处理收到的findnode、ping、pong、neighbors消息
 	go t.readLoop()
-}
-
-func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (data, hash []byte, err error) {
-	//buf, err := p.Serialize()
-
-	return nil, nil, nil
-}
-
-func decodePacket(buf []byte) (packet, NodeID, []byte, error) {
-	return nil, NodeID{}, nil, errPacketTooSmall
 }
 
 func (t *discoverUdp) close() {
