@@ -5,7 +5,7 @@ import "errors"
 // Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
-	errBadHash          = errors.New("bad hash")
+	errBadPrefix        = errors.New("bad prefix")
 	errExpired          = errors.New("expired")
 	errUnsolicitedReply = errors.New("unsolicited reply")
 	errUnknownNode      = errors.New("unknown node")

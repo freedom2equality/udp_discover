@@ -5,14 +5,38 @@
 		{
 			"checksumSHA1": "YEqHEaJ8n8iYCCdg+zQFwd8Vjdg=",
 			"path": "github.com/blockchainservice/common",
-			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
-			"revisionTime": "2018-07-18T11:16:26Z"
+			"revision": "0e5f79d5467cd42a54c402fbb2c360ab28a3eea1",
+			"revisionTime": "2018-08-07T05:56:29Z"
 		},
 		{
-			"checksumSHA1": "lOp0ZTJrYs0ixrVisg05w6oo4ao=",
+			"checksumSHA1": "fKHcqV239mHR2oqxE55C0Y+UAHc=",
 			"path": "github.com/blockchainservice/common/crypto",
-			"revision": "51d04b38c31d6ce0633580d591a15eafea19ddf3",
-			"revisionTime": "2018-07-18T11:16:26Z"
+			"revision": "0e5f79d5467cd42a54c402fbb2c360ab28a3eea1",
+			"revisionTime": "2018-08-07T05:56:29Z"
+		},
+		{
+			"checksumSHA1": "PpZG6Km3GTted7jfqN1pLAnz33w=",
+			"path": "github.com/blockchainservice/common/crypto/ed25519",
+			"revision": "0e5f79d5467cd42a54c402fbb2c360ab28a3eea1",
+			"revisionTime": "2018-08-07T05:56:29Z"
+		},
+		{
+			"checksumSHA1": "xZTxF3lBZfcF4SeqQVPEvj6scbI=",
+			"path": "github.com/blockchainservice/common/crypto/ed25519/internal/edwards25519",
+			"revision": "0e5f79d5467cd42a54c402fbb2c360ab28a3eea1",
+			"revisionTime": "2018-08-07T05:56:29Z"
+		},
+		{
+			"checksumSHA1": "CjHi1eSZSG4tGIwrngR9o3V8cL4=",
+			"path": "github.com/gogo/protobuf/proto",
+			"revision": "1ef32a8b9fc3f8ec940126907cedb5998f6318e4",
+			"revisionTime": "2018-03-30T17:46:43Z"
+		},
+		{
+			"checksumSHA1": "qkkChqSeonfjUJ3DQrjDaIV9pi4=",
+			"path": "github.com/golang/protobuf/proto",
+			"revision": "11bd559057bb9c65e24d1bd7f436d375323a8565",
+			"revisionTime": "2018-07-27T18:10:48Z"
 		},
 		{
 			"checksumSHA1": "h1d2lPZf6j2dW/mIqVnd1RdykDo=",

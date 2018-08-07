@@ -3,13 +3,13 @@ package udp_discover
 import (
 	"bytes"
 	"container/list"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/blockchainservice/common/crypto"
+	"github.com/blockchainservice/common/crypto/ed25519"
 	"github.com/udp_discover/util"
 )
 
@@ -30,7 +30,7 @@ type ReadPacket struct {
 }
 
 type DiscvConfig struct {
-	Priv       ecdsa.PrivateKey
+	Priv       ed25519.PrivateKey
 	DBPath     string
 	BootNodes  []*Node
 	Addr       *net.UDPAddr
@@ -54,7 +54,7 @@ type reply struct {
 
 type discoverUdp struct {
 	conn        net.UDPConn
-	priv        ecdsa.PrivateKey
+	priv        ed25519.PrivateKey
 	ourEndpoint Endpoint
 	addpending  chan *pending
 	gotreply    chan reply
@@ -90,7 +90,7 @@ func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 	realaddr := conn.LocalAddr().(*net.UDPAddr)
 	discvUdp.ourEndpoint = makeEndpoint(realaddr, uint16(realaddr.Port))
 	netrestrict := Netlist{}
-	discv, err := newDiscover(&discvUdp, cfg.Priv.PublicKey, cfg.DBPath, &netrestrict, cfg.BootNodes)
+	discv, err := newDiscover(&discvUdp, cfg.Priv.Public().(ed25519.PublicKey), cfg.DBPath, &netrestrict, cfg.BootNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -98,30 +98,33 @@ func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 	return discv.tab, nil
 }
 
-func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (data, hash []byte, err error) {
-	data = new(bytes.Buffer)
+func encodePacket(priv *ed25519.PrivateKey, ptype byte, req packet) (data, hash []byte, err error) {
+	pack := new(bytes.Buffer)
 	buf, err := req.Serialize()
 	if err != nil {
 		return nil, nil, err
 	}
 	// 改成私钥签名
-	var sig = make([]byte, sigSize)
-	data.Write(versionPrefix)
-	data.Write(sig)
-	data.WriteByte(ptype)
-	data.Write(buf)
-	hash := crypto.Sha3(data[versionPrefixSize:])
+	sig := ed25519.Sign(*priv, buf)
+	pack.Write(versionPrefix)
+	pack.Write(sig)
+	pack.WriteByte(ptype)
+	pack.Write(buf)
+	data = pack.Bytes()
+	hash = crypto.Sha3(data[versionPrefixSize:])
 	return data, hash, nil
 }
 
 func decodePacket(buf []byte) (packet, NodeID, []byte, error) {
 	if len(buf) < headSize+1 {
-		return return nil, NodeID{}, nil, errPacketTooSmall
+		return nil, NodeID{}, nil, errPacketTooSmall
 	}
-	hash, sig, sigdata := buf[:versionPrefixSize], buf[versionPrefixSize:headSize], buf[headSize:]
+	prefix, sig, sigdata := buf[:versionPrefixSize], buf[versionPrefixSize:headSize], buf[headSize:]
 	if !bytes.Equal(prefix, versionPrefix) {
-		return return nil, NodeID{}, nil, errBadPrefix
+		return nil, NodeID{}, nil, errBadPrefix
 	}
+	fmt.Println(sig)
+	hash := make([]byte, sigSize)
 	var fromID NodeID
 	var req packet
 	switch ptype := sigdata[0]; ptype {

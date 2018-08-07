@@ -1,15 +1,13 @@
 package udp_discover
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"errors"
-	"fmt"
 	"net"
 	"time"
 
 	"github.com/blockchainservice/common"
 	"github.com/blockchainservice/common/crypto"
+	"github.com/blockchainservice/common/crypto/ed25519"
 )
 
 type Node struct {
@@ -35,13 +33,15 @@ func NewNode(id NodeID, ip net.IP, udpPort, tcpPort uint16) *Node {
 	}
 }
 
-func PubkeyID(pub *ecdsa.PublicKey) NodeID {
+func PubkeyID(pub *ed25519.PublicKey) NodeID {
 	var id NodeID
-	pbytes := elliptic.Marshal(pub.Curve, pub.X, pub.Y)
-	if len(pbytes)-1 != len(id) {
-		panic(fmt.Errorf("need %d bit pubkey, got %d bits", (len(id)+1)*8, len(pbytes)))
-	}
-	copy(id[:], pbytes[1:])
+	/*
+		pbytes := elliptic.Marshal(pub.Curve, pub.X, pub.Y)
+		if len(pbytes)-1 != len(id) {
+			panic(fmt.Errorf("need %d bit pubkey, got %d bits", (len(id)+1)*8, len(pbytes)))
+		}
+		copy(id[:], pbytes[1:])
+	*/
 	return id
 }
 
@@ -68,6 +68,5 @@ func (n *Node) validateComplete() error {
 	if n.IP.IsMulticast() || n.IP.IsUnspecified() {
 		return errors.New("invalid IP (multicast/unspecified)")
 	}
-	_, err := n.ID.Pubkey() // validate the key (on curve, etc.)
-	return err
+	return nil
 }

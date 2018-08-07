@@ -1,13 +1,13 @@
 package udp_discover
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/blockchainservice/common/crypto"
+	"github.com/blockchainservice/common/crypto/ed25519"
 )
 
 const (
@@ -38,7 +38,7 @@ type DiscoverTab struct {
 	rand          *rand.Rand // source of randomness, periodically reseeded
 }
 
-func newDiscover(conn *discoverUdp, ourPubkey ecdsa.PublicKey, dbPath string, netrestrict *Netlist, bootnodes []*Node) (*DiscoverTab, error) {
+func newDiscover(conn *discoverUdp, ourPubkey ed25519.PublicKey, dbPath string, netrestrict *Netlist, bootnodes []*Node) (*DiscoverTab, error) {
 	ourID := PubkeyID(&ourPubkey)
 	var db *nodeDB
 	if dbPath != "<no database>" {

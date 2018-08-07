@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/blockchainservice/common/crypto"
-	"github.com/bytom/p2p/netutil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/udp_discover/protos"
 )
@@ -18,11 +17,11 @@ const (
 	neighborsPacket
 )
 
-const (
+var (
 	versionPrefix     = []byte("discovery v5")
 	versionPrefixSize = len(versionPrefix)
-	sigSize           = 520 / 8
-	headSize          = versionPrefix + sigSize // space of packet frame data
+	sigSize           = 520 / 8                     //520 / 8 后面需要改
+	headSize          = versionPrefixSize + sigSize // space of packet frame data
 )
 
 var (
@@ -276,7 +275,7 @@ func (req *findnode) handle(t *discoverUdp, from *net.UDPAddr, fromID NodeID, ma
 	// Send neighbors in chunks with at most maxNeighbors per packet
 	// to stay below the 1280 byte limit.
 	for _, n := range closest {
-		if netutil.CheckRelayIP(from.IP, n.IP) == nil {
+		if CheckRelayIP(from.IP, n.IP) == nil {
 			p.Peers = append(p.Peers, nodeToRPC(n))
 		}
 		if len(p.Peers) == maxNeighbors {
