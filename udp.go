@@ -70,7 +70,7 @@ func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) Endpoint {
 	return Endpoint{IP: ip, UDP: uint16(addr.Port), TCP: tcpPort}
 }
 
-func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
+func NewDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 	laddr := cfg.Addr
 	conn, err := net.ListenUDP("udp", laddr)
 	if err != nil {
@@ -95,6 +95,7 @@ func newDiscoverUdp(cfg *DiscvConfig) (*Table, error) {
 		return nil, err
 	}
 	discvUdp.discv = discv
+	discvUdp.Start()
 	return discv.tab, nil
 }
 
@@ -124,7 +125,7 @@ func decodePacket(buf []byte) (packet, NodeID, []byte, error) {
 		return nil, NodeID{}, nil, errBadPrefix
 	}
 	fmt.Println(sig)
-	hash := make([]byte, sigSize)
+	hash := crypto.Sha3(buf[versionPrefixSize:])
 	var fromID NodeID
 	var req packet
 	switch ptype := sigdata[0]; ptype {

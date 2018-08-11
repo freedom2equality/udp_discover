@@ -126,6 +126,48 @@ func (tab *Table) nodeToRevalidate() (n *Node, bi int) {
 	return nil, 0
 }
 
+func (tab *Table) ReadRandomNodes(buf []*Node) (n int) {
+	// TODO: tree-based buckets would help here
+	// Find all non-empty buckets and get a fresh slice of their entries.
+	var buckets [][]*Node
+	for _, b := range tab.buckets {
+		if len(b.entries) > 0 {
+			buckets = append(buckets, b.entries[:])
+		}
+	}
+	if len(buckets) == 0 {
+		return 0
+	}
+	// Shuffle the buckets.
+	for i := uint32(len(buckets)) - 1; i > 0; i-- {
+		j := randUint(i)
+		buckets[i], buckets[j] = buckets[j], buckets[i]
+	}
+	// Move head of each bucket into buf, removing buckets that become empty.
+	var i, j int
+	for ; i < len(buf); i, j = i+1, (j+1)%len(buckets) {
+		b := buckets[j]
+		buf[i] = &(*b[0])
+		buckets[j] = b[1:]
+		if len(b) == 1 {
+			buckets = append(buckets[:j], buckets[j+1:]...)
+		}
+		if len(buckets) == 0 {
+			break
+		}
+	}
+	return i + 1
+}
+
+func randUint(max uint32) uint32 {
+	if max < 2 {
+		return 0
+	}
+	var b [4]byte
+	rand.Read(b[:])
+	return binary.BigEndian.Uint32(b[:]) % max
+}
+
 // table of leading zero counts for bytes [0..255]
 var lzcount = [256]int{
 	8, 7, 6, 6, 5, 5, 5, 5,

@@ -22,6 +22,8 @@ const (
 	seedMinTableTime      = 5 * time.Minute
 	seedCount             = 30
 	seedMaxAge            = 5 * 24 * time.Hour
+
+	NodeURLScheme = "bnode"
 )
 
 type DiscoverTab struct {

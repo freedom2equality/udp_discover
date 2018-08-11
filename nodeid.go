@@ -7,7 +7,7 @@ import (
 
 const NodeIDBits = 512
 
-type NodeID [NodeIDBits / 8]byte
+type NodeID [NodeIDBits / 16]byte
 
 // Bytes returns a byte slice representation of the NodeID
 func (id NodeID) Bytes() []byte {

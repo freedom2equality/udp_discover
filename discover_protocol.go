@@ -18,9 +18,9 @@ const (
 )
 
 var (
-	versionPrefix     = []byte("discovery v5")
+	versionPrefix     = []byte("blockchainservice discovery")
 	versionPrefixSize = len(versionPrefix)
-	sigSize           = 520 / 8                     //520 / 8 后面需要改
+	sigSize           = 64                          //520 / 8 后面需要改
 	headSize          = versionPrefixSize + sigSize // space of packet frame data
 )
 
