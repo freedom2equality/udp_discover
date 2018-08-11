@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/blockchainservice/common/crypto/ed25519"
-	"github.com/p2p/p2p/discover"
 	"github.com/udp_discover"
 )
 
@@ -39,13 +38,13 @@ func main() {
 	tab, _ := udp_discover.NewDiscoverUdp(cfg)
 	needDynDials := 50
 	randomCandidates := needDynDials / 2
-	randomNodes := make([]*discover.Node, randomCandidates)
+	randomNodes := make([]*udp_discover.Node, randomCandidates)
 	for {
 		fmt.Println(tab)
 		if randomCandidates > 0 {
 			n := tab.ReadRandomNodes(randomNodes)
 			for i := 0; i < randomCandidates && i < n; i++ {
-				fmt.Println(randomNodesp[i])
+				fmt.Println(randomNodes[i])
 			}
 		}
 	}
